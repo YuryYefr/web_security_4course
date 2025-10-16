@@ -131,3 +131,4 @@ tags
 /lab_1/auth_examples/forms_auth/sessions.json
 /node_modules/
 /lab_2/.env
+/.env
