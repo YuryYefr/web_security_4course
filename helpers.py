@@ -40,7 +40,7 @@ def auth_code_callback():
         params = parse_qs(query)
         code = params.get("code", [""])[0]
 
-        print(f"\n✅ AUTH CODE RECEIVED: {code}\n")
+        print(f"AUTH CODE RECEIVED: {code}\n")
 
         # Respond to browser
         body = "<h1>Success!</h1><p>You can close this tab.</p>"

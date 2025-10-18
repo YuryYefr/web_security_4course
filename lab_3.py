@@ -16,6 +16,7 @@ auth_payload = {
     "redirect_uri": "http://127.0.0.1:3000",
     "state": "xyz123"
 }
+
 auth_url = f"https://{envs['DOMAIN']}/authorize?{urllib.parse.urlencode(auth_payload)}"
 # TODO try selenium or else
 webbrowser.open(auth_url)
@@ -50,6 +51,6 @@ response = requests.request("PATCH", url, headers=headers, data=payload)
 
 print(response.text)
 tokens = get_refresh_token(auth_code)
+
 # refresh token
-domain = envs["DOMAIN"]
 print(tokens.json())  # okay, seems that M2M cannot refresh token(only after user login)
