@@ -9,72 +9,97 @@
 </head>
 <body>
 <main id="main-holder">
-    <a href="/logout" id="logout">Logout</a>
-
-    <h1 id="login-header">Login</h1>
-
-    <div id="login-error-msg-holder">
-        <p id="login-error-msg">Invalid username <span id="error-msg-second-line">and/or password</span></p>
+    <div id="login-container">
+        <h1 id="login-header">Login</h1>
+        <div id="login-error-msg-holder">
+            <p id="login-error-msg">Invalid username <span id="error-msg-second-line">and/or password</span></p>
+        </div>
+        <form id="login-form">
+            <label>
+                <input type="text" name="login" placeholder="Username" class="login-form-field">
+            </label>
+            <label>
+                <input type="password" name="password" placeholder="Password" class="login-form-field">
+            </label>
+            <input type="submit" value="Login" id="login-form-submit">
+        </form>
+        <br>
+        <div class="container">
+            <a href="/auth">Login with Auth0</a>
+        </div>
+        <br>
+    <div class="container">
+    <a href="/passwordLogin">Login with Password grant type</a>
     </div>
 
-    <form id="login-form" action="/api/login" method="post">
-        <label for="username-field"></label><input type="text" name="login" id="username-field" class="login-form-field" placeholder="Username">
-        <label for="password-field"></label><input type="password" name="password" id="password-field" class="login-form-field" placeholder="Password">
-        <input type="submit" value="Login" id="login-form-submit">
-    </form>
-
-    <a href="/auth" id="auth0-login">Login with Auth0</a>
-    <a href="/passwordLogin" id="auth0pass-login">Login with Password grant type</a>
+    </div>
 </main>
 
 <script>
-    const loginForm = document.getElementById("login-form");
-    const loginErrorMsg = document.getElementById("login-error-msg");
-    const logoutLink = document.getElementById("logout");
+    const loginContainer = document.getElementById("login-container");
 
-    const stored = sessionStorage.getItem("session");
-    let token;
-    try {
-        token = JSON.parse(stored).token;
-    } catch {
-    }
-
+    // Get token from URL or sessionStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    let token = urlParams.get("token");
     if (token) {
-        axios.get("/", {headers: {Authorization: token}})
-            .then((res) => {
-                const {username} = res.data;
-                if (username) {
-                    document.body.innerHTML = `
-          <main>
-            <h1>Hello ${username}!</h1>
-            <p><a href="/token">Get Management Token</a></p>
-            <p><a href="/create-user">Create User via Auth0</a></p>
-            <p><a href="/logout">Logout</a></p>
-          </main>`;
-                }
-            });
+        sessionStorage.setItem("session", JSON.stringify({token}));
+        window.history.replaceState({}, document.title, "/");
+    } else {
+        token = JSON.parse(sessionStorage.getItem("session") || '{}').token;
     }
 
-    logoutLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        sessionStorage.removeItem("session");
-        location.reload();
-    });
+    // If user is logged in, show welcome panel
+    if (token) {
+        axios.get("/api/me", {headers: {Authorization: token}})
+            .then(res => {
+                const {username} = res.data;
+                loginContainer.innerHTML = `
+          <h1>Hello ${username}!</h1>
+          <div id="user-links">
+            <a href="/token" target="_blank">🔑 Get Management Token</a>
+            <a href="/create-user" target="_blank">👤 Create User via Auth0</a>
+            <a href="#" id="call-api-btn">🌐 Call Flask API</a>
+            <a href="#" id="logout-btn">🚪 Logout</a>
+          </div>
+          <pre id="api-result" style="margin-top:10px;"></pre>
+        `;
 
-    loginForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const login = loginForm.login.value;
-        const password = loginForm.password.value;
+                // Logout button
+                document.getElementById("logout-btn").addEventListener("click", e => {
+                    e.preventDefault();
+                    sessionStorage.removeItem("session");
+                    location.reload();
+                });
 
+                // Call Flask API
+                document.getElementById("call-api-btn").addEventListener("click", async e => {
+                    e.preventDefault();
+                    const resultEl = document.getElementById("api-result");
+                    resultEl.textContent = "Loading...";
+                    try {
+                        const apiRes = await axios.get("/call-api", {headers: {Authorization: token}});
+                        resultEl.textContent = JSON.stringify(apiRes.data, null, 2);
+                    } catch (err) {
+                        resultEl.textContent = "Error: " + (err.response?.data || err.message);
+                    }
+                });
+            })
+            .catch(() => sessionStorage.removeItem("session"));
+    }
+
+    // Login form
+    document.getElementById("login-form").addEventListener("submit", e => {
+        e.preventDefault();
+        const login = e.target.login.value;
+        const password = e.target.password.value;
         axios.post("/api/login", {login, password})
-            .then((res) => {
+            .then(res => {
                 sessionStorage.setItem("session", JSON.stringify(res.data));
                 location.reload();
             })
-            .catch(() => {
-                loginErrorMsg.style.opacity = 1;
-            });
+            .catch(() => document.getElementById("login-error-msg").style.opacity = 1);
     });
 </script>
+
 </body>
 </html>
