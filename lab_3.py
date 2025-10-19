@@ -37,7 +37,7 @@ user_id = get_user_id()
 url = f"{audience}users/{user_id}"
 
 payload = json.dumps({
-    "connection": 'Username-Password-Authentication',
+    "connection": 'my-database',
     "password": envs["PASSWORD"]  # not a mistake, it's just to represent flow
 })
 headers = {
@@ -52,4 +52,4 @@ print(response.text)
 tokens = get_refresh_token(auth_code)
 # refresh token
 domain = envs["DOMAIN"]
-print(tokens.json())  # okay, seems that M2M cannot refresh token(only after user login)
+print(tokens.items())  # okay, seems that M2M cannot refresh token(only after user login)
