@@ -132,3 +132,4 @@ tags
 /node_modules/
 /lab_2/.env
 /.env
+/lab_4/sessions.json

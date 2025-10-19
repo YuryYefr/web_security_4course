@@ -8,7 +8,7 @@ import bodyParser from "body-parser";
 import onFinished from "on-finished";
 import {fileURLToPath} from "url";
 import jwt from "jsonwebtoken";
-import {loginWithPassword, envs} from "./helpers.js";
+import {loginWithPassword, envs, getManagementToken, getRefreshToken} from "./helpers.js";
 
 dotenv.config({path: "../.env"});
 
@@ -81,36 +81,24 @@ app.use((req, res, next) => {
     next();
 });
 
-// ---- Auth0 Helpers ----
-async function getManagementToken() {
-    const url = `https://${envs.DOMAIN}/oauth/token`;
-    const payload = {
-        client_id: envs.CLIENT_ID,
-        client_secret: envs.CLIENT_SECRET,
-        audience: envs.AUDIENCE,
-        grant_type: "client_credentials",
-    };
-    const res = await axios.post(url, payload, {headers: {"Content-Type": "application/json"}});
-    return res.data;
-}
 
-async function getRefreshToken(code) {
-    const url = `https://${envs.DOMAIN}/oauth/token`;
-    const payload = {
-        grant_type: "authorization_code",
-        client_id: envs.CLIENT_ID,
-        client_secret: envs.CLIENT_SECRET,
-        redirect_uri: "http://127.0.0.1:3000/callback",
-        code,
-    };
-    const res = await axios.post(url, payload);
-    return res.data;
-}
 
 // ---- Routes ----
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public/index.html"));
+    // Redirect user to Auth0's Universal Login
+    const authUrl = `https://${envs.DOMAIN}/authorize` +
+        `?response_type=code` +
+        `&client_id=${envs.CLIENT_ID}` +
+        `&redirect_uri=${envs.API_BACKEND_DOMAIN}/callback` +   // <--- callback goes to your API domain
+        `&scope=openid%20profile%20email%20offline_access` +
+        `&audience=${envs.AUDIENCE}` +
+        `&state=${uuid()}`;
+    console.log(authUrl);
+
+    res.redirect(authUrl);
 });
+
+
 
 app.get("/logout", (req, res) => {
     sessions.destroy(req);
@@ -143,25 +131,46 @@ app.get("/auth", (req, res) => {
 
 // Auth0 callback
 app.get("/callback", async (req, res) => {
-    const {code} = req.query;
-    if (!code) return res.status(400).send("Missing code");
+    const { code, state, error } = req.query;
+
+    if (error) {
+        console.error("Auth error:", error);
+        return res.status(400).send(`Authentication failed: ${error}`);
+    }
+
+    if (!code) return res.status(400).send("Missing authorization code");
 
     try {
-        const tokenData = await getRefreshToken(code);
-        req.session.tokens = tokenData;
+        // Exchange the code for tokens (Authorization Code Grant)
+        const tokenResponse = await axios.post(
+            `https://${envs.DOMAIN}/oauth/token`,
+            {
+                grant_type: "authorization_code",
+                client_id: envs.CLIENT_ID,
+                client_secret: envs.CLIENT_SECRET,
+                code,
+                redirect_uri: `${envs.FRONTEND_DOMAIN}/callback`,
+            },
+            { headers: { "Content-Type": "application/json" } }
+        );
 
+        const tokenData = tokenResponse.data;
         const decoded = jwt.decode(tokenData.id_token);
-        req.session.username = decoded.name || decoded.email || "Auth0User";
-        req.session.email = decoded.email;
-        req.session.sub = decoded.sub;
 
-        // Redirect to home with session token
-        res.redirect(`/?token=${req.sessionId}`);
+        req.session.tokens = tokenData;
+        req.session.username = decoded?.name || decoded?.email || "SSOUser";
+        req.session.email = decoded?.email;
+        req.session.sub = decoded?.sub;
+
+        // Redirect user back to frontend app with the session token
+        const redirectUrl = `${envs.FRONTEND_DOMAIN}/?token=${req.sessionId}`;
+        res.redirect(redirectUrl);
     } catch (err) {
-        console.error("Auth0 callback error:", err.response?.data || err.message);
-        res.status(500).send("Token exchange failed");
+        console.error("Error exchanging code for tokens:", err.response?.data || err.message);
+        res.status(500).send("Failed to exchange authorization code");
     }
 });
+
 
 // API endpoint to get current session user
 app.get("/api/me", (req, res) => {
