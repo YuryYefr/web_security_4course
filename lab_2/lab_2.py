@@ -48,9 +48,9 @@ domain = os.getenv("DOMAIN")
 mgmt_token = token_data['access_token']
 
 user_payload = {
-    "email": "my_user@example.com",
-    "password": "some_pass123!stronk",
-    "connection": "Username-Password-Authentication",  # Default
+    "email": os.getenv("EMAIL"),
+    "password": os.getenv("PASSWORD"),
+    "connection": "my-database",
     "email_verified": False
 }
 
